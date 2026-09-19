@@ -95,6 +95,16 @@ flowchart TD
 - All model parameters (`configs/models.yaml`) and system prompt templates (`configs/prompts.yaml`) are externalized.
 - Supports seamless switching between `groq`, `openai`, and `sarvam` providers by changing `active_profile` without modifying application source code.
 
+### 5. 🛡️ Security Guardrails Suite
+- Integrated `src/utils/guardrails.py` at the entry of `RouterAgent.route_utterance()`:
+  - **PII Redaction**: Automatically masks Indian phone numbers (`+91`/10-digit), 12-digit Aadhaar cards, 16-digit credit cards, and email addresses to sanitized tokens (`[PHONE_REDACTED]`, `[AADHAAR_REDACTED]`, `[CREDIT_CARD_REDACTED]`, `[EMAIL_REDACTED]`).
+  - **Jailbreak Interception**: Detects prompt overrides (*"ignore previous instructions"*, *"system prompt"*, *"DAN mode"*, *"reveal prompt"*), bypassing LLM inference and assigning a polite refusal turn to `AI Sathi`.
+  - **Profanity Filtering**: Flags English and Hindi/Hinglish toxic speech in both Latin and Devanagari scripts.
+
+### 6. 🔊 Resilient Azure Speech TTS & Room Chat Fallback
+- `src/audio/tts.py` enforces a **15.0-second synthesis timeout** with **immediate connection retry** on network glitches.
+- In case of failure or timeout, the system plays a 1.0-second dual-tone audio chime cue (`ACKNOWLEDGMENT_CUE_PCM`) and posts the complete intended text response directly to the LiveKit room text chat (`lk.chat` topic).
+
 ---
 
 ## 📊 Benchmark & Trade-off Matrix
@@ -104,7 +114,7 @@ flowchart TD
 | **STT Engine** | **Deepgram Nova-2 (`hi-IN`)** | Groq Whisper / OpenAI Whisper | Deepgram Nova-2 delivers ~220ms time-to-first-token with superior Hindi/English code-switching accuracy compared to Whisper's 650ms latency. |
 | **LLM Provider** | **Qwen 3.8 27B on Groq** | Llama 3.3 70B / GPT-4o-mini | Qwen 27B on Groq LPUs achieves ~1200 tokens/sec, enabling multi-persona extraction and turn plan generation in <300ms total latency. |
 | **VAD Engine** | **Silero VAD v4 (16kHz)** | WebRTC VAD / PyTorch Silero v5 | Silero v4 provides sub-30ms voice activity detection with low CPU footprint, configured with `min_silence_duration=1.75s` to allow compound query framing. |
-| **TTS Engine** | **Azure Speech Neural (`24kHz`)** | ElevenLabs / PlayHT | Azure Neural voices (`hi-IN-MadhurNeural`, `hi-IN-SwaraNeural`) offer natural Indian Hinglish pronunciation, <250ms synthesis latency, and 15s connection retries. |
+| **TTS Engine** | **Azure Speech Neural (`24kHz`)** | ElevenLabs / PlayHT | Azure Neural voices (`hi-IN-MadhurNeural`, `hi-IN-SwaraNeural`) offer natural Indian Hinglish pronunciation, <250ms synthesis latency, 15s retries, and chat text fallback. |
 
 ---
 
@@ -143,12 +153,15 @@ roxstar_voice_assistant/
 │   └── utils/
 │       ├── __init__.py
 │       ├── config_loader.py    # Singleton YAML AppConfig parser
-│       └── fallback.py         # Safe external service call wrapper with fallback
+│       ├── fallback.py         # Safe external service call wrapper with fallback
+│       └── guardrails.py       # Security guardrails (PII, jailbreak, profanity)
 └── tests/
+    ├── conftest.py             # Pytest fixtures & automatic state cache cleanup
     ├── test_audio_pipeline.py
     ├── test_config_loader.py
     ├── test_foundation.py
     ├── test_graceful_yield.py
+    ├── test_guardrails.py
     ├── test_mandatory_features.py
     ├── test_router_and_state.py
     └── test_stage4.py
@@ -212,7 +225,7 @@ The worker connects to your LiveKit Cloud project and automatically joins any ac
 
 ## 🧪 Running Unit & Integration Tests
 
-The repository includes 36 unit and integration tests covering audio processing, state graphing, text deduplication, and fallback behavior.
+The repository includes **46 unit and integration tests** covering audio processing, state graphing, text deduplication, security guardrails, and fallback behavior.
 
 Run the test suite:
 
@@ -222,5 +235,6 @@ Run the test suite:
 
 Expected output:
 ```
-======================== 36 passed in 3.50s ========================
+======================== 46 passed in 3.00s ========================
 ```
+

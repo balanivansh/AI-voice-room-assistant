@@ -30,10 +30,11 @@ class TurnPlan(BaseModel):
         le=1.0,
         description="Calibrated confidence score float between 0.0 and 1.0 reflecting certainty.",
     )
-    reason: Optional[TurnReason] = Field(
+    reason: Optional[str] = Field(
         default="direct_address",
-        description="Standard reason enum code: direct_address, knowledge_query, context_continuation, multi_speaker_chain, stop_command, or incomplete_thought.",
+        description="Standard reason code or string explanation.",
     )
+
 
 
 class RouterOutput(BaseModel):

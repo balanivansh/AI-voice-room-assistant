@@ -7,8 +7,10 @@ from src.logger import get_logger, log_structured_event
 from src.state.room_state import RouterOutput, TurnPlan
 from src.utils.config_loader import config
 from src.utils.fallback import safe_external_call
+from src.utils.guardrails import apply_guardrails
 
 logger = get_logger("roxstar_voice_assistant.agent.router")
+
 
 
 def normalize_phonetic_aliases(text: str) -> str:
@@ -114,7 +116,28 @@ class RouterAgent:
             for item in interrupted_list[-3:]
         ) or "None."
 
-        normalized_text = normalize_phonetic_aliases(text)
+        guard_res = apply_guardrails(text)
+        if not guard_res.is_safe:
+            logger.warning(
+                "security_guardrail_triggered",
+                violation=guard_res.violation_type,
+                speaker_identity=speaker_identity,
+            )
+            return RouterOutput(
+                new_speaker_facts=[],
+                salient_entity="safety_policy",
+                turns=[
+                    TurnPlan(
+                        target="sathi",
+                        task=guard_res.refusal_message or "Aapki request safety policy ke khilaaf hai.",
+                        confidence=1.0,
+                        reason=f"guardrail_refusal_{guard_res.violation_type}",
+                    )
+                ],
+            )
+
+        normalized_text = normalize_phonetic_aliases(guard_res.sanitized_text)
+
 
         fallback_output = RouterOutput(
             new_speaker_facts=[],
