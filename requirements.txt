@@ -1,0 +1,12 @@
+livekit-agents>=1.8.0
+livekit-plugins-silero>=1.8.0
+livekit-plugins-deepgram>=1.8.0
+livekit-plugins-azure>=1.8.0
+langgraph>=0.2.0
+langchain-groq>=0.2.0
+pydantic>=2.7.0
+pydantic-settings>=2.2.0
+python-dotenv>=1.0.1
+structlog>=24.1.0
+pyyaml>=6.0
+

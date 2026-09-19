@@ -1,0 +1,32 @@
+active_profile: "groq"
+
+profiles:
+  groq:
+    base_url: "https://api.groq.com"
+    api_key_env: "GROQ_API_KEY"
+    router_model: "qwen/qwen3.8-27b"
+    persona_model: "qwen/qwen3.8-27b"
+    temperature: 0.7
+    max_tokens: 160
+    router_temperature: 0.0
+    router_max_tokens: 150
+
+  openai:
+    base_url: "https://api.openai.com/v1"
+    api_key_env: "OPENAI_API_KEY"
+    router_model: "gpt-4o-mini"
+    persona_model: "gpt-4o-mini"
+    temperature: 0.7
+    max_tokens: 160
+    router_temperature: 0.0
+    router_max_tokens: 150
+
+  sarvam:
+    base_url: "https://api.sarvam.ai/v1"
+    api_key_env: "SARVAM_API_KEY"
+    router_model: "sarvam-2b"
+    persona_model: "sarvam-2b"
+    temperature: 0.7
+    max_tokens: 160
+    router_temperature: 0.0
+    router_max_tokens: 150
