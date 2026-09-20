@@ -1,5 +1,9 @@
 # Roxstar Multi-Speaker Voice & Chat Orchestrator (LiveKit + LangGraph)
 
+[![Watch Demo Video](https://img.shields.io/badge/🎥%20Watch%20Demo%20Video-Google%20Drive-blue?style=for-the-badge&logo=google-drive)](https://drive.google.com/file/d/1myfmycrnm6EzEmC74r3ubpq6CRK8gzMe/view?usp=drive_link)
+
+> 📹 **Live Demonstration Video**: [Click here to watch the complete multi-speaker voice assistant demo on Google Drive](https://drive.google.com/file/d/1myfmycrnm6EzEmC74r3ubpq6CRK8gzMe/view?usp=drive_link)
+
 A production-grade, multi-speaker real-time AI voice and text orchestrator built with **LiveKit Agents**, **LangGraph**, **Deepgram STT**, **Groq Qwen 27B LLM**, and **Azure Speech Neural TTS**.
 
 The system connects two distinct, identifiable AI personas (**Roxstar AI Dost** and **Roxstar AI Sathi**) as visible room participants in a shared LiveKit WebRTC session, capable of listening to multi-user conversations, extracting speaker facts, executing compound turn handoffs, handling text chat, enforcing dynamic conciseness rules, and supporting sub-50ms barge-in interruptions.
