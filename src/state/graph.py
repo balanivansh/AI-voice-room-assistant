@@ -89,10 +89,14 @@ class RoomStateGraphManager:
         if not utt:
             return {}
 
+        raw_text = utt.get("text", "")
+        from src.utils.guardrails import apply_guardrails
+        sanitized_text = apply_guardrails(raw_text).sanitized_text
+
         turns = list(state.get("last_n_turns", []))
         turns.append({
             "identity": utt["identity"],
-            "text": utt["text"],
+            "text": sanitized_text,
             "source": utt["source"],
             "timestamp": utt["timestamp"],
             "bot_replies": [],
@@ -107,20 +111,21 @@ class RoomStateGraphManager:
             "current_speaker": utt["identity"],
         }
 
+
     async def _router_node(self, state: RoomState) -> dict:
         """Execute LLM router node for fact extraction and turn planning."""
         utt = state.get("current_utterance")
         if not utt:
             return {"pending_turns": []}
 
-        speaker = state.get("current_speaker", utt["identity"])
+        speaker_identity = state.get("current_speaker", utt["identity"])
         facts_dict = dict(state.get("speaker_facts", {}))
         history = state.get("last_n_turns", [])
         active_topic = state.get("active_topic")
         interrupted_topics = state.get("interrupted_topics", [])
 
         output = await self.router_agent.route_utterance(
-            speaker_identity=speaker,
+            speaker_identity=speaker_identity,
             text=utt["text"],
             speaker_facts=facts_dict,
             active_topic=active_topic,
@@ -128,24 +133,31 @@ class RoomStateGraphManager:
             interrupted_topics=interrupted_topics,
         )
 
-        # Merge new speaker facts
-        existing_facts = list(facts_dict.get(speaker, []))
-        for fact in output.new_speaker_facts:
-            if fact not in existing_facts:
-                existing_facts.append(fact)
-        facts_dict[speaker] = existing_facts
+        # Deep copy / retrieve existing facts for the speaker
+        current_speaker_facts = list(self.state.get("speaker_facts", {}).get(speaker_identity, []))
+
+        # Append new facts without introducing duplicates
+        for fact in (output.new_speaker_facts or []):
+            cleaned_fact = str(fact).strip()
+            if cleaned_fact and cleaned_fact not in current_speaker_facts:
+                current_speaker_facts.append(cleaned_fact)
+
+        # Ensure state dictionary is updated properly
+        if "speaker_facts" not in self.state:
+            self.state["speaker_facts"] = {}
+        self.state["speaker_facts"][speaker_identity] = current_speaker_facts
 
         # Persist updated facts to disk cache
-        self.state["speaker_facts"] = facts_dict
         self._save_to_cache()
 
         new_topic = output.salient_entity or active_topic
 
         return {
-            "speaker_facts": facts_dict,
+            "speaker_facts": self.state["speaker_facts"],
             "active_topic": new_topic,
             "pending_turns": output.turns,
         }
+
 
     def _queue_node(self, state: RoomState) -> dict:
         """Queue node making pending_turns available for consumption."""

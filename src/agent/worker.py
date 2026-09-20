@@ -727,13 +727,26 @@ async def entrypoint(ctx: JobContext) -> None:
 
 def main():
     """CLI entrypoint for running the LiveKit worker process."""
+    import sys
+    import os
+
+    target_room = os.getenv("LIVEKIT_ROOM", "room-voice-live")
+
+    # Only inject --room when using the 'connect' command, never for 'dev' or 'start'
+    if len(sys.argv) == 1:
+        sys.argv.extend(["connect", "--room", target_room])
+    elif len(sys.argv) > 1 and sys.argv[1] == "connect" and "--room" not in sys.argv:
+        sys.argv.extend(["--room", target_room])
+
     options = WorkerOptions(
         entrypoint_fnc=entrypoint,
+        agent_name="roxstar-voice-agent",
         ws_url=settings.livekit_url,
         api_key=settings.livekit_api_key,
         api_secret=settings.livekit_api_secret,
     )
     cli.run_app(options)
+
 
 
 if __name__ == "__main__":

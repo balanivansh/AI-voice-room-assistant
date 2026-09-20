@@ -13,23 +13,33 @@ logger = get_logger("roxstar_voice_assistant.agent.router")
 
 
 
+ISOLATED_CALLOUT = re.compile(
+    r'^\s*(?:ai\s+)?(?:dost|sathi|दोस्त|साथी|सार्थी)\s*[\.\?\!\,]?\s*$',
+    re.IGNORECASE,
+)
+
+
+
 def normalize_phonetic_aliases(text: str) -> str:
     """Normalize phonetic STT transcript variations for assistant names."""
     if not text:
         return text
+    # Only substitute when explicitly prefixed by "AI", "arre", or "yahi"
     text = re.sub(
-        r"\b(yahi\s+saath\s+hi|ai\s+saal|ai\s+saathi|saath\s+hi)\b",
-        "AI Sathi",
+        r'\b(?:ai|arre|yahi)\s+(?:saath?\s*hi|saathi|saal|साथ\s*ही)\b',
+        'AI Sathi',
         text,
         flags=re.IGNORECASE,
     )
     text = re.sub(
-        r"\b(ai\s+dosth?|dosth?)\b",
-        "AI Dost",
+        r'\b(?:ai|arre)\s+(?:dosth?|do|दो)\b',
+        'AI Dost',
         text,
         flags=re.IGNORECASE,
     )
     return text
+
+
 
 
 ROUTER_SYSTEM_PROMPT = config.prompts_cfg.get("router", {}).get("system_prompt", "")
@@ -104,18 +114,7 @@ class RouterAgent:
         Returns:
             RouterOutput object containing facts, entity, and turn plans.
         """
-        known_facts = speaker_facts.get(speaker_identity, [])
-        history_str = "\n".join(
-            f"- {turn.get('identity', 'user')}: {turn.get('text', '')}"
-            for turn in history[-10:]
-        ) or "No prior history."
-
-        interrupted_list = interrupted_topics or []
-        interrupted_topics_str = "\n".join(
-            f"- {item.get('speaker', 'user')}: {item.get('topic', '')}"
-            for item in interrupted_list[-3:]
-        ) or "None."
-
+        # 1. Execute guardrails FIRST at top of router entry
         guard_res = apply_guardrails(text)
         if not guard_res.is_safe:
             logger.warning(
@@ -136,7 +135,32 @@ class RouterAgent:
                 ],
             )
 
-        normalized_text = normalize_phonetic_aliases(guard_res.sanitized_text)
+        # 2. Use sanitized_text for downstream normalization and context building
+        sanitized_text = guard_res.sanitized_text
+        normalized_text = normalize_phonetic_aliases(sanitized_text)
+
+        if ISOLATED_CALLOUT.match(normalized_text.strip()):
+            logger.info("ignoring_isolated_wake_callout", text=normalized_text)
+            return RouterOutput(
+                new_speaker_facts=[],
+                salient_entity=None,
+                turns=[],
+            )
+
+        # 3. Format history and context AFTER sanitization
+        known_facts = speaker_facts.get(speaker_identity, [])
+        history_str = "\n".join(
+            f"- {turn.get('identity', 'user')}: {turn.get('text', '')}"
+            for turn in history[-10:]
+        ) or "No prior history."
+
+        interrupted_list = interrupted_topics or []
+        interrupted_topics_str = "\n".join(
+            f"- {item.get('speaker', 'user')}: {item.get('topic', '')}"
+            for item in interrupted_list[-3:]
+        ) or "None."
+
+
 
 
         fallback_output = RouterOutput(
@@ -197,6 +221,23 @@ class RouterAgent:
                         else:
                             merged_turns.append(turn)
                 output.turns = merged_turns
+
+            # Append conciseness directive based on turn count and task type
+            greeting_ack_keywords = ("greet", "acknowledg", "welcome", "fact", "hello", "hi", "intro")
+            if len(output.turns) > 1:
+                for turn in output.turns:
+                    if turn.target != "no_reply":
+                        if any(kw in turn.task.lower() for kw in greeting_ack_keywords):
+                            turn.task += " Acknowledge in 1 single short sentence (under 12 words)."
+                        else:
+                            turn.task += " Keep response strictly to 1-2 short sentences (under 25 words) for a fast handoff to the companion bot."
+            elif len(output.turns) == 1:
+                for turn in output.turns:
+                    if turn.target != "no_reply":
+                        if any(kw in turn.task.lower() for kw in greeting_ack_keywords):
+                            turn.task += " Acknowledge in 1 single short sentence (under 12 words)."
+                        else:
+                            turn.task += " Keep response to 2-3 natural sentences (under 45 words)."
 
         log_structured_event(
             event_name="router_decision",
